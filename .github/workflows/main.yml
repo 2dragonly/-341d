@@ -1,20 +1,21 @@
 name: Windows - Ngrok
 
-on: workflow_dispatch
+on: [workflow_dispatch]
 
 jobs:
   build:
     runs-on: windows-latest
+    timeout-minutes: 9999
 
     steps:
-    - name: Download ngrok
-      run: Invoke-WebRequest -Uri "https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-windows-amd64.zip" -OutFile ngrok.zip
+    - name: Download
+      run: Invoke-WebRequest https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-windows-amd64.zip -OutFile ngrok.zip
 
-    - name: Extract ngrok
-      run: Expand-Archive -Path ngrok.zip -DestinationPath .
+    - name: Extract
+      run: Expand-Archive ngrok.zip
 
-    - name: Authenticate ngrok
-      run: .\ngrok.exe authtoken $Env:NGROK_AUTH_TOKEN
+    - name: Auth
+      run: .\ngrok\ngrok.exe authtoken $Env:NGROK_AUTH_TOKEN
       env:
         NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
 
@@ -24,11 +25,10 @@ jobs:
         Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
         Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 1
 
-    - name: Set Password for runneradmin
-      run: Set-LocalUser -Name "runneradmin" -Password (ConvertTo-SecureString -AsPlainText "P@ssw0rd!" -Force)
+    - run: Set-LocalUser -Name "runneradmin" -Password (ConvertTo-SecureString -AsPlainText "P@ssw0rd!" -Force)
 
-    - name: Start ngrok
-      run: Start-Process -NoNewWindow -FilePath .\ngrok.exe -ArgumentList "tcp 3389" -PassThru
+    - name: Start ngrok in the background
+      run: Start-Process Powershell -ArgumentList '-Noexit -Command ".\ngrok\ngrok.exe tcp --region=eu 3389"'
 
     - name: Wait for ngrok to start
       run: Start-Sleep -Seconds 5
@@ -42,7 +42,7 @@ jobs:
         while (($null -eq $ngrokApi) -and ($attempts -lt $maxAttempts)) {
           $attempts += 1
           try {
-            $ngrokApi = Invoke-WebRequest -Uri "http://localhost:4040/api/tunnels"
+            $ngrokApi = Invoke-WebRequest "http://localhost:4040/api/tunnels"
           } catch {
             Write-Host "Waiting for ngrok API... (attempt $attempts of $maxAttempts)"
             Start-Sleep -Seconds 5
@@ -53,7 +53,7 @@ jobs:
           throw "Failed to connect to ngrok API after $maxAttempts attempts."
         }
 
-        $ngrokUrl = ($ngrokApi.Content | ConvertFrom-Json).tunnels[0].public_url
+        $ngrokUrl = ($ngrokApi | ConvertFrom-Json).tunnels[0].public_url
         Write-Host "Ngrok URL: $ngrokUrl"
 
     - name: Wait before cleanup
