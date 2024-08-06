@@ -1,16 +1,16 @@
-name: Windows RDP Access
+name: Windows - Ngrok
 
 on: workflow_dispatch
 
 env:
   NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
-  RDP_USER: administrator
-  RDP_PASS: ${{ secrets.RDP_PASSWORD }}
+  RDP_USER: runneradmin
+  RDP_PASS: p@ssw0rd!
 
 jobs:
   setup-windows-rdp:
     runs-on: windows-latest
-    timeout-minutes: 360
+    timeout-minutes: 9999
 
     steps:
     - name: Setup Windows Remote Desktop
