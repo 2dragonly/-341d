@@ -8,7 +8,7 @@ env:
   RDP_PASS: p@ssw0rd!
 
 jobs:
-  setup-windows-rdp:
+  ngrok-rdp:
     runs-on: windows-latest
     timeout-minutes: 9999
 
@@ -61,7 +61,7 @@ jobs:
             $tunnels = Invoke-RestMethod -Uri http://localhost:4040/api/tunnels
             $ngrokUrl = ($tunnels.tunnels | Where-Object { $_.proto -eq 'tcp' }).public_url
           } catch {
-            Write-Host "Attempt $attempts: Waiting for Ngrok to start..."
+            Write-Host "Attempt $attempts : Waiting for Ngrok to start..."
           }
         }
 
