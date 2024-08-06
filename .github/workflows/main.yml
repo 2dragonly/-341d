@@ -30,7 +30,7 @@ jobs:
         .\ngrok\ngrok.exe authtoken $env:NGROK_AUTH_TOKEN
 
     - name: Start Ngrok Tunnel
-      run: Start-Process -FilePath ".\ngrok\ngrok.exe" -ArgumentList "tcp --region=eu 3389" -WindowStyle Hidden
+      run: Start-Process -FilePath ".\ngrok\ngrok.exe" -ArgumentList "tcp 3389 --cidr-allow 0.0.0.0/32" -WindowStyle Hidden
 
     - name: Retrieve Ngrok URL
       run: |
