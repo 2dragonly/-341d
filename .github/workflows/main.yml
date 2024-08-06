@@ -20,10 +20,8 @@ jobs:
         Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 1
         Set-LocalUser -Name "$env:RDP_USER" -Password (ConvertTo-SecureString -AsPlainText "$env:RDP_PASS" -Force)
         
-        Get-ChildItem -Path ([Environment]::GetFolderPath('Desktop')) -Force | Remove-Item -Force -Recurse
-        
-        $shell = New-Object -ComObject "Shell.Application"
-        $shell.minimizeall()
+        Get-ChildItem -Path ([System.Environment]::GetFolderPath('Desktop')) -Filter '*.lnk' | Remove-Item -Force
+        (New-Object -ComObject "Shell.Application").minimizeall()
         
     - name: Install and Configure Ngrok
       run: |
