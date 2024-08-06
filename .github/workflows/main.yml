@@ -22,22 +22,9 @@ jobs:
         
         Get-ChildItem -Path ([Environment]::GetFolderPath('Desktop')) -Force | Remove-Item -Force -Recurse
         
-        Add-Type @"
-          using System;
-          using System.Runtime.InteropServices;
-          public class Win32 {
-            [DllImport("user32.dll")]
-            [return: MarshalAs(UnmanagedType.Bool)]
-            public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
-            [DllImport("user32.dll")]
-            public static extern IntPtr GetForegroundWindow();
-          }
-        "@
+        $shell = New-Object -ComObject "Shell.Application"
+        $shell.minimizeall()
         
-        foreach ($window in (Get-Process | Where-Object {$_.MainWindowHandle -ne 0})) {
-          [void] [Win32]::ShowWindow($window.MainWindowHandle, 6)  # 6 is SW_MINIMIZE
-        }
-
     - name: Install and Configure Ngrok
       run: |
         Invoke-WebRequest https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-windows-amd64.zip -OutFile ngrok.zip
