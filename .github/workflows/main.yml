@@ -1,77 +1,104 @@
-name: Windows - Ngrok
+name: Windows RDP Access
 
-on: [workflow_dispatch]
+on: workflow_dispatch
 
 env:
   NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
-  WIN_USER: runneradmin
-  WIN_PASS: p@ssw0rd!
+  RDP_USER: administrator
+  RDP_PASS: ${{ secrets.RDP_PASSWORD }}
 
 jobs:
-  build:
+  setup-windows-rdp:
     runs-on: windows-latest
-    timeout-minutes: 9999
+    timeout-minutes: 360
 
     steps:
-    - name: Download
-      run: Invoke-WebRequest https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-windows-amd64.zip -OutFile ngrok.zip
-
-    - name: Extract
-      run: Expand-Archive ngrok.zip
-
-    - name: Auth
-      run: .\ngrok\ngrok.exe authtoken $Env:NGROK_AUTH_TOKEN
-
-    - name: Enable Remote Desktop
+    - name: Setup Windows Remote Desktop
       run: |
         Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
         Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
         Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 1
+        Set-LocalUser -Name "$env:RDP_USER" -Password (ConvertTo-SecureString -AsPlainText "$env:RDP_PASS" -Force)
+        
+        Get-ChildItem -Path ([Environment]::GetFolderPath('Desktop')) -Force | Remove-Item -Force -Recurse
+        
+        Add-Type @"
+          using System;
+          using System.Runtime.InteropServices;
+          public class Win32 {
+            [DllImport("user32.dll")]
+            [return: MarshalAs(UnmanagedType.Bool)]
+            public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+            [DllImport("user32.dll")]
+            public static extern IntPtr GetForegroundWindow();
+          }
+        "@
+        
+        foreach ($window in (Get-Process | Where-Object {$_.MainWindowHandle -ne 0})) {
+          [void] [Win32]::ShowWindow($window.MainWindowHandle, 6)  # 6 is SW_MINIMIZE
+        }
 
-    - name: Set Local User
-      run: Set-LocalUser -Name "${{ env.WIN_USER }}" -Password (ConvertTo-SecureString -AsPlainText "${{ env.WIN_PASS }}" -Force)
-
-    - name: Start ngrok in the background
-      run: Start-Process Powershell -ArgumentList '-Noexit -Command ".\ngrok\ngrok.exe tcp --region=eu 3389"'
-
-    - name: Wait for ngrok to start
-      run: Start-Sleep -Seconds 5
-
-    - name: Get ngrok tunnel information
+    - name: Install and Configure Ngrok
       run: |
-        $maxAttempts = 20
-        $attempts = 0
-        $ngrokApi = $null
+        Invoke-WebRequest https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-windows-amd64.zip -OutFile ngrok.zip
+        Expand-Archive ngrok.zip -DestinationPath .\ngrok
+        .\ngrok\ngrok.exe authtoken $env:NGROK_AUTH_TOKEN
 
-        while (($null -eq $ngrokApi) -and ($attempts -lt $maxAttempts)) {
-          $attempts += 1
+    - name: Start Ngrok Tunnel
+      run: Start-Process -FilePath ".\ngrok\ngrok.exe" -ArgumentList "tcp --region=eu 3389" -WindowStyle Hidden
+
+    - name: Retrieve Ngrok URL
+      run: |
+        $attempts = 0
+        $maxAttempts = 10
+        $ngrokUrl = $null
+
+        while (-not $ngrokUrl -and $attempts -lt $maxAttempts) {
+          Start-Sleep -Seconds 5
+          $attempts++
+          
           try {
-            $ngrokApi = Invoke-WebRequest "http://localhost:4040/api/tunnels"
+            $tunnels = Invoke-RestMethod -Uri http://localhost:4040/api/tunnels
+            $ngrokUrl = ($tunnels.tunnels | Where-Object { $_.proto -eq 'tcp' }).public_url
           } catch {
-            Write-Host "Waiting for ngrok API... (attempt $attempts of $maxAttempts)"
-            Start-Sleep -Seconds 5
+            Write-Host "Attempt $attempts: Waiting for Ngrok to start..."
           }
         }
 
-        if ($null -eq $ngrokApi) {
-          throw "Failed to connect to ngrok API after $maxAttempts attempts."
+        if (-not $ngrokUrl) {
+          throw "Failed to retrieve Ngrok URL after $maxAttempts attempts."
         }
 
-        $ngrokUrl = ($ngrokApi | ConvertFrom-Json).tunnels[0].public_url
-        Write-Host "Ngrok URL: $ngrokUrl"
-        Write-Host "Username: ${{ env.WIN_USER }}"
-        Write-Host "Password: ${{ env.WIN_PASS }}"
+        $ngrokUrl = $ngrokUrl -replace '^tcp://', ''
+        
+        Write-Host "RDP Connection Details"
+        Write-Host "URL: $ngrokUrl"
+        Write-Host "Username: $env:RDP_USER"
+        Write-Host "Password: $env:RDP_PASS"
 
-    - name: Wait before cleanup
-      run: Start-Sleep -Seconds 21600
+    - name: Keep Alive
+      run: |
+        $duration = 21600  # 6 hours in seconds
+        $interval = 300    # Check every 5 minutes
+        $endTime = (Get-Date).AddSeconds($duration)
+
+        while ((Get-Date) -lt $endTime) {
+          $ngrokProcess = Get-Process -Name "ngrok" -ErrorAction SilentlyContinue
+          if (-not $ngrokProcess) {
+            Write-Host "Ngrok process not found. Exiting workflow."
+            exit 1
+          }
+
+          Start-Sleep -Seconds $interval
+        }
 
     - name: Cleanup
       if: always()
       run: |
         $ngrokProcess = Get-Process -Name "ngrok" -ErrorAction SilentlyContinue
-        if ($null -ne $ngrokProcess) {
-          Write-Host "Terminating ngrok process..."
+        if ($ngrokProcess) {
+          Write-Host "Terminating Ngrok process..."
           $ngrokProcess | Stop-Process -Force
-        } else {
-          Write-Host "Ngrok process not found."
         }
+        
+        Write-Host "Cleanup complete."
