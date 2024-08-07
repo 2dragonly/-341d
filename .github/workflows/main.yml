@@ -29,8 +29,8 @@ jobs:
           Set-LocalUser -Name $env:RDP_USER -Password (ConvertTo-SecureString "$env:RDP_PASS" -AsPlainText -Force)
         } else {
           New-LocalUser -Name "$env:RDP_USER" -Password (ConvertTo-SecureString "$env:RDP_PASS" -AsPlainText -Force)
-          Add-LocalGroupMember -Group "Administrators" -Member "$env:RDP_USER"
-          Enable-LocalUser -Name "$env:RDP_USER" *>$null
+          Add-LocalGroupMember -Group "Administrators" -Member "$env:RDP_USER" *>$null
+          Enable-LocalUser -Name "$env:RDP_USER"
         }
         
         icacls "C:\Windows\Temp" /grant "$env:RDP_USER`:F" *>$null
