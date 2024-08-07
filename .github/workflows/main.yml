@@ -2,6 +2,10 @@ name: Windows - Ngrok
 
 on: workflow_dispatch
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != "refs/heads/main" }}
+
 env:
   NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
   RDP_USER: runneradmin
@@ -84,8 +88,8 @@ jobs:
             continue
           }
 
-          $ngrokUrl = $ngrokUrl -replace '^tcp://', ''
-          $address, $port = $ngrokUrl -split ':' 
+          $ngrokUrl = $ngrokUrl -replace "^tcp://", ""
+          $address, $port = $ngrokUrl -split ":" 
           
           $testResult = Test-NetConnection -ComputerName $address -Port $port
           if ($testResult.TcpTestSucceeded) {
