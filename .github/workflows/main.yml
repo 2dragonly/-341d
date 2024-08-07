@@ -4,7 +4,7 @@ on: workflow_dispatch
 
 env:
   NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
-  RDP_USER: administrator
+  RDP_USER: runneradmin
   RDP_PASS: p@ssw0rd!
 
 jobs:
@@ -19,9 +19,14 @@ jobs:
         Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
         Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 1
 
-        New-LocalUser -Name "$env:RDP_USER" -Password (ConvertTo-SecureString "$env:RDP_PASS" -AsPlainText -Force)
-        Add-LocalGroupMember -Group "Administrators" -Member "$env:RDP_USER"
-        Enable-LocalUser -Name "$env:RDP_USER"
+        if ("$env:RDP_USER" -eq "runneradmin") {
+          Write-Host "Warning: Using default user account!"
+          Set-LocalUser -Name $env:RDP_USER -Password (ConvertTo-SecureString "$env:RDP_PASS" -AsPlainText -Force)
+        } else {
+          New-LocalUser -Name "$env:RDP_USER" -Password (ConvertTo-SecureString "$env:RDP_PASS" -AsPlainText -Force)
+          Add-LocalGroupMember -Group "Administrators" -Member "$env:RDP_USER"
+          Enable-LocalUser -Name "$env:RDP_USER"
+        }
         Remove-LocalUser -Name "installer"
         
         icacls "C:\Windows\Temp" /grant "$env:RDP_USER`:F"
