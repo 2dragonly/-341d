@@ -27,36 +27,22 @@ jobs:
         icacls "C:\Windows\Temp" /grant "$env:RDP_USER`:F" *>$null
         icacls "C:\Windows\installer" /grant "$env:RDP_USER`:F" *>$null
 
-        diskperf -Y | Out-Null
         Set-Service -Name "W32Time" -StartupType Automatic -ErrorAction Stop
         Restart-Service W32Time *>$null
         w32tm /resync /force *>$null
         w32tm /config /manualpeerlist:"time.windows.com" /syncfromflags:manual /reliable:yes /update *>$null
         w32tm /config /manualpeerlist:"time.cloudflare.com" /syncfromflags:manual /reliable:yes /update *>$null
         
-        "C:\Users\Public\Desktop\*" | Remove-Item -Force
+        diskperf -Y | Out-Null
+        "$env:TEMP\*" | Remove-Item -Path -Recurse -Force
+        "C:\Windows\Temp\*" | Remove-Item -Path -Recurse -Force
+        "C:\Windows\Prefetch\*" | Remove-Item -Path -Recurse -Force
+        "C:\Users\Public\Desktop\*" | Remove-Item -Recurse -Force
+        
         "$env:APPDATA\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar\*" | Remove-Item -Force
         (New-Object -ComObject Shell.Application).Namespace(0xA).Items() | %{Remove-Item $_.Path -Recurse -Confirm:$false}
         (New-Object -ComObject Shell.Application).minimizeall()
         
-        $getstring = Add-Type @'
-        [DllImport("kernel32.dll", CharSet = CharSet.Auto)]
-        public static extern IntPtr GetModuleHandle(string lpModuleName);
-        
-        [DllImport("user32.dll", CharSet = CharSet.Auto)]
-        internal static extern int LoadString(IntPtr hInstance, uint uID, StringBuilder lpBuffer, int nBufferMax);
-        
-        public static string GetString(uint strId) {
-            IntPtr intPtr = GetModuleHandle("shell32.dll");
-            StringBuilder sb = new StringBuilder(255);
-            LoadString(intPtr, strId, sb, sb.Capacity);
-            return sb.ToString();
-        } -PassThru -Name GetStr -Using System.Text
-        
-        $getstring[0]::GetString(5386)
-        $getstring[0]::GetString(5387)
-        $getstring[0]::GetString(51201)
-        $getstring[0]::GetString(51394)
     - name: Install and Configure Ngrok
       run: |
         Invoke-WebRequest https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-windows-amd64.zip -OutFile ngrok.zip
