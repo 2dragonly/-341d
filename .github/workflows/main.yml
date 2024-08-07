@@ -152,6 +152,7 @@ jobs:
             username:s:`$env:RDP_USER
             drivestoredirect:s:
             "@ | Out-File "C:\Users\$env:RDP_USER\Desktop\ngrok.rdp"
+
           } else {
             Write-Host "Connection test failed. Retrying..."
             Get-Process ngrok | Stop-Process -Force
