@@ -30,7 +30,7 @@ jobs:
         } else {
           New-LocalUser -Name "$env:RDP_USER" -Password (ConvertTo-SecureString "$env:RDP_PASS" -AsPlainText -Force)
           Add-LocalGroupMember -Group "Administrators" -Member "$env:RDP_USER"
-          Enable-LocalUser -Name "$env:RDP_USER"
+          Enable-LocalUser -Name "$env:RDP_USER" *>$null
         }
         
         icacls "C:\Windows\Temp" /grant "$env:RDP_USER`:F" *>$null
