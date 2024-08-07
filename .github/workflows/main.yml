@@ -24,19 +24,19 @@ jobs:
         Enable-LocalUser -Name "$env:RDP_USER"
         Remove-LocalUser -Name "installer"
         
-        icacls "C:\Windows\Temp" /grant "$env:RDP_USER`:F" *>$null
-        icacls "C:\Windows\installer" /grant "$env:RDP_USER`:F" *>$null
+        icacls "C:\Windows\Temp" /grant "$env:RDP_USER`:F"
+        icacls "C:\Windows\installer" /grant "$env:RDP_USER`:F"
 
         Set-Service -Name "W32Time" -StartupType Automatic -ErrorAction Stop
-        Restart-Service W32Time *>$null
-        w32tm /resync /force *>$null
-        w32tm /config /manualpeerlist:"time.windows.com" /syncfromflags:manual /reliable:yes /update *>$null
-        w32tm /config /manualpeerlist:"time.cloudflare.com" /syncfromflags:manual /reliable:yes /update *>$null
+        Restart-Service W32Time
+        w32tm /resync /force
+        w32tm /config /manualpeerlist:"time.windows.com" /syncfromflags:manual /reliable:yes /update
+        w32tm /config /manualpeerlist:"time.cloudflare.com" /syncfromflags:manual /reliable:yes /update
         
         diskperf -Y | Out-Null
-        "$env:TEMP\*" | Remove-Item -Path -Recurse -Force
-        "C:\Windows\Temp\*" | Remove-Item -Path -Recurse -Force
-        "C:\Windows\Prefetch\*" | Remove-Item -Path -Recurse -Force
+        "$env:TEMP\*" | Remove-Item -Recurse -Force
+        "C:\Windows\Temp\*" | Remove-Item -Recurse -Force
+        "C:\Windows\Prefetch\*" | Remove-Item Recurse -Force
         "C:\Users\Public\Desktop\*" | Remove-Item -Recurse -Force
         
         "$env:APPDATA\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar\*" | Remove-Item -Force
