@@ -33,15 +33,15 @@ jobs:
           Enable-LocalUser -Name "$env:RDP_USER"
         }
         
-        icacls "C:\Windows\Temp" /grant "$env:RDP_USER`:F"
-        icacls "C:\Windows\installer" /grant "$env:RDP_USER`:F"
+        icacls "C:\Windows\Temp" /grant "$env:RDP_USER`:F" *>$null
+        icacls "C:\Windows\installer" /grant "$env:RDP_USER`:F" *>$null
 
-        Set-Service -Name "W32Time" -StartupType Automatic -ErrorAction Stop
-        Restart-Service W32Time
-        w32tm /resync /force
-        w32tm /config /manualpeerlist:"time.windows.com" /syncfromflags:manual /reliable:yes /update
+        Set-Service -Name "W32Time" -StartupType Automatic -ErrorAction Stop *>$null
+        Restart-Service W32Time *>$null
+        w32tm /resync /force *>$null
+        w32tm /config /manualpeerlist:"time.windows.com" /syncfromflags:manual /reliable:yes /update *>$null
         
-        diskperf -Y | Out-Null
+        diskperf -Y *>$null
         "$env:TEMP\*" | Remove-Item -Recurse -Force
         "C:\Windows\Temp\*" | Remove-Item -Recurse -Force
         "C:\Windows\Prefetch\*" | Remove-Item -Recurse -Force
