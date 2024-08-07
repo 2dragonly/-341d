@@ -1,3 +1,4 @@
+#.github/workflows/main.yml
 name: Windows - Ngrok
 
 on: workflow_dispatch
@@ -8,7 +9,7 @@ concurrency:
 
 env:
   NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
-  RDP_USER: runneradmin
+  RDP_USER: admin
   RDP_PASS: p@ssw0rd!
 
 jobs:
@@ -31,7 +32,6 @@ jobs:
           Add-LocalGroupMember -Group "Administrators" -Member "$env:RDP_USER"
           Enable-LocalUser -Name "$env:RDP_USER"
         }
-        Remove-LocalUser -Name "installer"
         
         icacls "C:\Windows\Temp" /grant "$env:RDP_USER`:F"
         icacls "C:\Windows\installer" /grant "$env:RDP_USER`:F"
@@ -46,8 +46,6 @@ jobs:
         "C:\Windows\Temp\*" | Remove-Item -Recurse -Force
         "C:\Windows\Prefetch\*" | Remove-Item -Recurse -Force
         "C:\Users\Public\Desktop\*" | Remove-Item -Recurse -Force
-        
-        "$env:APPDATA\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar\*" | Remove-Item -Force
         (New-Object -ComObject Shell.Application).Namespace(0xA).Items() | %{Remove-Item $_.Path -Recurse -Confirm:$false}
         (New-Object -ComObject Shell.Application).minimizeall()
         
@@ -78,7 +76,7 @@ jobs:
               $tunnels = Invoke-RestMethod -Uri http://localhost:4040/api/tunnels
               $ngrokUrl = ($tunnels.tunnels | Where-Object { $_.proto -eq 'tcp' }).public_url
             } catch {
-              Write-Host "Attempt $attempts : Waiting for Ngrok to start..."
+              Write-Host "Attempt $attempts`: Waiting for Ngrok to start..."
             }
           }
 
