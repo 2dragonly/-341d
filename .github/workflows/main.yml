@@ -36,7 +36,7 @@ jobs:
         diskperf -Y | Out-Null
         "$env:TEMP\*" | Remove-Item -Recurse -Force
         "C:\Windows\Temp\*" | Remove-Item -Recurse -Force
-        "C:\Windows\Prefetch\*" | Remove-Item Recurse -Force
+        "C:\Windows\Prefetch\*" | Remove-Item -Recurse -Force
         "C:\Users\Public\Desktop\*" | Remove-Item -Recurse -Force
         
         "$env:APPDATA\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar\*" | Remove-Item -Force
