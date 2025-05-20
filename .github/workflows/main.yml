@@ -3,9 +3,9 @@ name: Windows - Ngrok
 
 on: workflow_dispatch
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+# concurrency:
+#   group: ${{ github.workflow }}-${{ github.ref }}
+#   cancel-in-progress: true
 
 env:
   NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
