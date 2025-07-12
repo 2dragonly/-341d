@@ -1,4 +1,4 @@
-name: macOS - Ngrok
+name: MacOS - Ngrok
 
 on: workflow_dispatch
 
@@ -31,17 +31,19 @@ jobs:
           sudo dscl . -passwd /Users/$RDP_USER $RDP_PASS
           sudo dscl . -passwd /Users/$RDP_USER $RDP_PASS
           sudo createhomedir -c -u $RDP_USER > /dev/null
+          sudo dscl . -append /Groups/admin GroupMembership $RDP_USER
 
           #Enable VNC
           sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -configure -allowAccessFor -allUsers -privs -all
           sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -configure -clientopts -setvnclegacy -vnclegacy yes 
 
           #VNC password - http://hints.macworld.com/article.php?story=20071103011608872
-          echo $RDP_PASS | perl -we 'BEGIN { @k = unpack "C*", pack "H*", "1734516E8BA8C5E2FF1C39567390ADCA"}; $_ = <>; chomp; s/^(.{8}).*/$RDP_PASS/; @p = unpack "C*", $_; foreach (@k) { printf "%02X", $_ ^ (shift @p || 0) }; print "\n"' | sudo tee /Library/Preferences/com.apple.VNCSettings.txt
-
+          echo $RDP_PASS | perl -we 'BEGIN { @k = unpack "C*", pack "H*", "1734516E8BA8C5E2FF1C39567390ADCA"}; $_ = <>; chomp; s/^(.{8}).*/$1/; @p = unpack "C*", $_; foreach (@k) { printf "%02X", $_ ^ (shift @p || 0) }; print "\n"' | sudo tee /Library/Preferences/com.apple.VNCSettings.txt
+          
           #Start VNC/reset changes
           sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -restart -agent -console
           sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -activate
+
           #Reduce Motion and Transparency 
           defaults write com.apple.Accessibility DifferentiateWithoutColor -int 1
           defaults write com.apple.Accessibility ReduceMotionEnabled -int 1
