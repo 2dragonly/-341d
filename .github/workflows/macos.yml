@@ -13,7 +13,7 @@ defaults:
 
 jobs:
   ngrok-rdp:
-    runs-on: macos-latest
+    runs-on: macos-15
     timeout-minutes: 360
 
     steps:
@@ -25,33 +25,31 @@ jobs:
           echo "👤 Creating user: $RDP_USER"
           sudo dscl . -create /Users/$RDP_USER
           sudo dscl . -create /Users/$RDP_USER UserShell /bin/bash
-          sudo dscl . -create /Users/$RDP_USER RealName "$RDP_USER"
+          sudo dscl . -create /Users/$RDP_USER RealName "Lazuee"
           sudo dscl . -create /Users/$RDP_USER UniqueID 1001
           sudo dscl . -create /Users/$RDP_USER PrimaryGroupID 80
           sudo dscl . -create /Users/$RDP_USER NFSHomeDirectory /Users/$RDP_USER
           sudo dscl . -passwd /Users/$RDP_USER "$RDP_PASS"
           sudo createhomedir -c -u $RDP_USER > /dev/null
-
-          echo "🖥 Enabling Remote Management..."
-          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
-            -activate -configure -access -on -users $RDP_USER \
-            -privs -all -restart -agent -menu
+          
+          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -configure -allowAccessFor -allUsers -privs -all
+          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -configure -clientopts -setvnclegacy -vnclegacy yes 
 
           echo "🔐 Setting VNC password..."
-          echo -n "$RDP_PASS" | perl -we '
-            BEGIN { @k = unpack "C*", pack "H*", "1734516E8BA8C5E2FF1C39567390ADCA" };
-            $_ = <>; chomp; s/^(.{8}).*/$1/;
-            @p = unpack "C*", $_;
-            foreach (@k) { printf "%02X", $_ ^ (shift @p || 0) }; print "\n"
-          ' | sudo tee /Library/Preferences/com.apple.VNCSettings.txt > /dev/null
-          sudo chmod 600 /Library/Preferences/com.apple.VNCSettings.txt
-
+          echo $RDP_PASS | perl -we 'BEGIN { @k = unpack "C*", pack "H*", "1734516E8BA8C5E2FF1C39567390ADCA"}; $_ = <>; chomp; s/^(.{8}).*/$1/; @p = unpack "C*", $_; foreach (@k) { printf "%02X", $_ ^ (shift @p || 0) }; print "\n"' | sudo tee /Library/Preferences/com.apple.VNCSettings.txt
+          
+          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -restart -agent -console
+          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -activate
+          
           echo "🎛 Optimizing settings..."
           defaults write com.apple.Accessibility ReduceMotionEnabled -int 1
           defaults write com.apple.universalaccess reduceMotion -int 1
           defaults write com.apple.universalaccess reduceTransparency -int 1
           sudo nvram boot-args="serverperfmode=1 $(nvram boot-args 2>/dev/null | cut -f 2-)"
-
+          
+          sudo /usr/bin/defaults write .GlobalPreferences MultipleSessionsEnabled -bool TRUE
+          defaults write "Apple Global Domain" MultipleSessionsEnabled -bool true
+          
           echo "🔓 Disabling screen lock..."
           defaults write com.apple.loginwindow DisableScreenLock -bool true
           defaults write com.apple.loginwindow AllowList -string '*'
