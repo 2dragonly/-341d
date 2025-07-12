@@ -43,25 +43,52 @@ jobs:
           
           # Enable subpixel font rendering for non-Apple LCDs
           defaults write NSGlobalDomain AppleFontSmoothing -int 1
-          
+
           # Enable Screen Sharing
           sudo defaults write /Library/Preferences/com.apple.RemoteManagement ARDEnabled -bool true
           sudo defaults write /Library/Preferences/com.apple.RemoteManagement Enabled -bool true
           sudo defaults write /Library/Preferences/com.apple.ScreenSharing Enabled -bool true
 
-          # Attempt to grant screen recording permission
+          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
+            -activate \
+            -configure \
+            -access -on \
+            -clientopts -setvnclegacy -vnclegacy yes \
+            -clientopts -setvncpw -vncpw "$VNC_PASS" \
+            -restart -agent \
+            -privs -all
+
+          # Attempt to grant screen recording permission (may not work in CI without MDM)
           sudo sqlite3 /Library/Application\ Support/com.apple.TCC/TCC.db \
             "INSERT OR REPLACE INTO access (service, client, client_type, auth_value, auth_reason, auth_version) \
-             VALUES ('kTCCServiceScreenCapture', 'com.apple.screensharing', 0, 2, 2, 1);"
+             VALUES ('kTCCServiceScreenCapture', 'com.apple.screensharing', 0, 2, 2, 1);" || echo "Warning: Failed to modify TCC database (may require MDM in CI)."
 
-          # Verify Screen Sharing is enabled
-          if ! sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -status | grep -q "Screen Sharing.*enabled"; then
-            echo "Error: Screen Sharing failed to enable."
+          # Verify Screen Sharing is enabled (alternative check)
+          if ! defaults read /Library/Preferences/com.apple.ScreenSharing 2>/dev/null | grep -q "Enabled = 1"; then
+            echo "Warning: Screen Sharing may not be enabled. Checking process status..."
+            if ! pgrep -f "ScreensharingAgent" >/dev/null; then
+              echo "Error: Screen Sharing process (ScreensharingAgent) is not running."
+              # Attempt to restart Screen Sharing
+              sudo launchctl unload /System/Library/LaunchDaemons/com.apple.screensharing.plist 2>/dev/null
+              sudo launchctl load /System/Library/LaunchDaemons/com.apple.screensharing.plist
+              sleep 5
+              if ! pgrep -f "ScreensharingAgent" >/dev/null; then
+                echo "Error: Failed to start Screen Sharing process."
+                exit 1
+              fi
+            fi
+          fi
+
+          # Check if VNC server is listening on port 5900
+          if ! netstat -an | grep -q ":5900.*LISTEN"; then
+            echo "Error: VNC server is not listening on port 5900."
             exit 1
           fi
 
-          # Enable VNC
-          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -activate -configure -access -on -clientopts -setvnclegacy -vnclegacy yes -clientopts -setvncpw -vncpw $VNC_PASS -restart -agent -privs -all
+          # Log TCC database status for debugging
+          echo "TCC database entries for screen capture:"
+          sudo sqlite3 /Library/Application\ Support/com.apple.TCC/TCC.db \
+            "SELECT * FROM access WHERE service = 'kTCCServiceScreenCapture';" || echo "Warning: Failed to query TCC database."
 
           # Keep the session alive (caffeinate prevents idle sleep)
           caffeinate -dimsu &>/dev/null &
