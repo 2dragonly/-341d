@@ -20,6 +20,11 @@ jobs:
         run: |
           # Disable spotlight indexing
           sudo mdutil -i off -a
+          
+          # Disable sleep modes
+          sudo systemsetup -setdisplaysleep Off
+          sudo systemsetup -setsleep Off
+          sudo systemsetup -setcomputersleep Off
 
           # Create new account
           sudo dscl . -create /Users/$RDP_USER
@@ -27,22 +32,29 @@ jobs:
           sudo dscl . -create /Users/$RDP_USER RealName "$RDP_USER"
           sudo dscl . -create /Users/$RDP_USER UniqueID 1001
           sudo dscl . -create /Users/$RDP_USER PrimaryGroupID 80
-          sudo dscl . -create /Users/$RDP_USER NFSHomeDirectory /Users/vncuser
-          sudo dscl . -passwd /Users/$RDP_USER $RDP_PASS
+          sudo dscl . -create /Users/$RDP_USER NFSHomeDirectory /Users/$RDP_USER
           sudo dscl . -passwd /Users/$RDP_USER $RDP_PASS
           sudo createhomedir -c -u $RDP_USER > /dev/null
           sudo dscl . -append /Groups/admin GroupMembership $RDP_USER
 
-          # Enable VNC
-          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -configure -allowAccessFor -allUsers -privs -all
-          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -configure -clientopts -setvnclegacy -vnclegacy yes 
+          # Skip GUI login screen
+          sudo defaults write /Library/Preferences/com.apple.loginwindow autoLoginUser -string "$RDP_USER"
+          sudo defaults write /Library/Preferences/com.apple.loginwindow autoLoginUserScreen -string "0"
 
-          # VNC password - http://hints.macworld.com/article.php?story=20071103011608872
-          echo $RDP_PASS | perl -we 'BEGIN { @k = unpack "C*", pack "H*", "1734516E8BA8C5E2FF1C39567390ADCA"}; $_ = <>; chomp; s/^(.{8}).*/$1/; @p = unpack "C*", $_; foreach (@k) { printf "%02X", $_ ^ (shift @p || 0) }; print "\n"' | sudo tee /Library/Preferences/com.apple.VNCSettings.txt
-          
-          # Start VNC/reset changes
-          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -restart -agent -console
-          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -activate
+          # Disable SIP protections
+          sudo nvram boot-args="serverperfmode=1 amfi_get_out_of_my_way=1 $(nvram boot-args 2>/dev/null | cut -f 2-)"
+
+          # Enable VNC
+          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
+            -configure -allowAccessFor -allUsers -privs -all -clientopts -setvnclegacy -vnclegacy yes
+          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
+            -configure -clientopts -setvncpw -vncpw "$RDP_PASS"
+          sudo sqlite3 /Library/Application\ Support/com.apple.TCC/TCC.db \
+            "INSERT OR REPLACE INTO access 
+              VALUES('kTCCServiceScreenCapture','com.apple.screensharing.agent',0,1,1,NULL,NULL,NULL,'UNUSED',NULL,0,1681392526);"
+          sudo launchctl load -w /System/Library/LaunchDaemons/com.apple.screensharing.plist
+          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
+            -restart -agent -console
 
           # Turn off Bluetooth, if no paired devices exist
           sudo defaults write /Library/Preferences/com.apple.Bluetooth ControllerPowerState -int 0
@@ -67,11 +79,6 @@ jobs:
           sudo /usr/bin/defaults write .GlobalPreferences MultipleSessionsEnabled -bool TRUE
           defaults write "Apple Global Domain" MultipleSessionsEnabled -bool true
 
-          # Prevent system from sleeping
-          sudo systemsetup -setdisplaysleep Off
-          sudo systemsetup -setsleep Off
-          sudo systemsetup -setcomputersleep Off
-
           # Disable Screen-Lock
           defaults write com.apple.loginwindow DisableScreenLock -bool true
           defaults write com.apple.loginwindow AllowList -string '*'
@@ -81,13 +88,6 @@ jobs:
 
           # Disable automatic log-out
           sudo defaults write GlobalPreferences com.apple.autologout.AutoLogOutDelay 0
-
-          # Disable guest account form login window
-          sudo defaults write /Library/Preferences/com.apple.loginwindow GuestEnabled -bool false;
-
-          # Skip GUI login screen
-          sudo defaults write /Library/Preferences/com.apple.loginwindow SHOWFULLNAME -bool false
-          sudo defaults write /Library/Preferences/com.apple.loginwindow autoLoginUser vncuser
 
           # Disable display sleep and disable screensaver password
           sudo pmset -a displaysleep 0
