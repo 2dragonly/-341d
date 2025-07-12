@@ -38,8 +38,8 @@ jobs:
           sudo dscl . -append /Groups/admin GroupMembership $RDP_USER
 
           # Skip GUI login screen
-          sudo defaults write /Library/Preferences/com.apple.loginwindow autoLoginUser -string "$RDP_USER"
-          sudo defaults write /Library/Preferences/com.apple.loginwindow autoLoginUserScreen -string "0"
+          defaults write /Library/Preferences/com.apple.loginwindow autoLoginUser -string "$RDP_USER"
+          defaults write /Library/Preferences/com.apple.loginwindow autoLoginUserScreenLocked -bool false
 
           # Disable SIP protections
           sudo nvram boot-args="serverperfmode=1 amfi_get_out_of_my_way=1 $(nvram boot-args 2>/dev/null | cut -f 2-)"
@@ -79,16 +79,17 @@ jobs:
               local service="$1"
               local app_identifier="$2"
               local app_csreq_blob="$3"
+              local dbPath="/Library/Application Support/com.apple.TCC/TCC.db"
           
               # Check if entry already exists
-              local exist=$(sudo sqlite3 /Library/Application\ Support/com.apple.TCC/TCC.db "select count(*) from access where service = '$service' and client = '$app_identifier';")
-              
+              local exist=$(sudo sqlite3 "$dbPath" "select count(*) from access where service = '$service' and client = '$app_identifier';")
+              echo "'$service' [-] '$app_identifier' [-] '$app_csreq_blob'"
               if [[ "$exist" -gt 0 ]]; then
-                  sudo sqlite3 /Library/Application\ Support/com.apple.TCC/TCC.db "update access SET auth_value=2, csreq='$app_csreq_blob' where service = '$service' and client = '$app_identifier';"
+                  echo "'$app_identifier' is already have access!"
               else
                   # Updated for macOS Sonoma TCC schema (17 columns)
-                  sudo sqlite3 /Library/Application\ Support/com.apple.TCC/TCC.db \
-                    "INSERT INTO access VALUES('$service', '$app_identifier', 0, 2, 3, 1, '$app_csreq_blob', NULL, 0, 'UNUSED', NULL, 0, CAST(strftime('%s','now') AS INTEGER), NULL, NULL, NULL, NULL);"
+                  sudo sqlite3 "$dbPath" \
+                    "INSERT OR IGNORE INTO access VALUES('$service', '$app_identifier', 0, 2, 3, 1, '$app_csreq_blob', NULL, 0, 'UNUSED', NULL, 0, CAST(strftime('%s','now') AS INTEGER), NULL, NULL, NULL, NULL);"
               fi
           }
           function giveFullDiskAccessPermission {
@@ -120,9 +121,6 @@ jobs:
           # Start VNC/reset changes
           sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -restart -agent -console
           sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -activate
-
-          # Turn off Bluetooth, if no paired devices exist
-          sudo defaults write /Library/Preferences/com.apple.Bluetooth ControllerPowerState -int 0
 
           # Disable transparency in the menu bar and elsewhere
           defaults write com.apple.universalaccess reduceTransparency -bool true
@@ -157,15 +155,6 @@ jobs:
           # Disable display sleep and disable screensaver password
           sudo pmset -a displaysleep 0
           sudo defaults write /Library/Preferences/com.apple.screensaver askForPassword -int 0
-
-          # Disable save to iCloud
-          sudo defaults write NSGlobalDomain NSDocumentSaveNewDocumentsToCloud -bool false
-          
-          # Disable the iCloud prompt when you login
-          sudo defaults write "/System/Library/User Template/Non_localized/Library/Preferences/com.apple.SetupAssistant" DidSeeCloudSetup -bool TRUE
-
-          # Save to disk (not to iCloud) by default:
-          defaults write -g NSDocumentSaveNewDocumentsToCloud -bool false
 
           # Disables reading/writing .DS_Stores on SMB network shares
           # @see https://support.apple.com/en-us/HT208209
