@@ -16,112 +16,125 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 360
     steps:
-      - name: Setup macOS Remote Desktop
+      - name: Setup MacOS Remote Desktop
         run: |
-          echo "▶️ Disabling Spotlight indexing..."
+          #disable spotlight indexing
           sudo mdutil -i off -a
 
-          echo "👤 Creating user: $RDP_USER"
+          #Create new account
           sudo dscl . -create /Users/$RDP_USER
           sudo dscl . -create /Users/$RDP_USER UserShell /bin/bash
-          sudo dscl . -create /Users/$RDP_USER RealName "Lazuee"
+          sudo dscl . -create /Users/$RDP_USER RealName "$RDP_USER"
           sudo dscl . -create /Users/$RDP_USER UniqueID 1001
           sudo dscl . -create /Users/$RDP_USER PrimaryGroupID 80
-          sudo dscl . -create /Users/$RDP_USER NFSHomeDirectory /Users/$RDP_USER
-          sudo dscl . -passwd /Users/$RDP_USER "$RDP_PASS"
+          sudo dscl . -create /Users/$RDP_USER NFSHomeDirectory /Users/vncuser
+          sudo dscl . -passwd /Users/$RDP_USER $RDP_PASS
+          sudo dscl . -passwd /Users/$RDP_USER $RDP_PASS
           sudo createhomedir -c -u $RDP_USER > /dev/null
 
-          echo "🖥️ Enabling GUI session and auto-login..."
-          sudo defaults write /Library/Preferences/com.apple.loginwindow autoLoginUser "$RDP_USER"
-          sudo launchctl asuser $(id -u "$RDP_USER") sudo -u "$RDP_USER" open -a Finder
-          sudo launchctl load -w /System/Library/LaunchAgents/com.apple.Dock.plist || true
+          #Enable VNC
+          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -configure -allowAccessFor -allUsers -privs -all
+          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -configure -clientopts -setvnclegacy -vnclegacy yes 
 
-          echo "📡 Enabling Remote Management..."
-          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
-            -configure -allowAccessFor -allUsers -privs -all
-          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
-            -configure -clientopts -setvnclegacy -vnclegacy yes
+          #VNC password - http://hints.macworld.com/article.php?story=20071103011608872
+          echo $RDP_PASS | perl -we 'BEGIN { @k = unpack "C*", pack "H*", "1734516E8BA8C5E2FF1C39567390ADCA"}; $_ = <>; chomp; s/^(.{8}).*/$RDP_PASS/; @p = unpack "C*", $_; foreach (@k) { printf "%02X", $_ ^ (shift @p || 0) }; print "\n"' | sudo tee /Library/Preferences/com.apple.VNCSettings.txt
 
-          echo "🔐 Setting VNC password..."
-          echo "$RDP_PASS" | perl -we '
-            BEGIN { @k = unpack "C*", pack "H*", "1734516E8BA8C5E2FF1C39567390ADCA" };
-            $_ = <>; chomp; s/^(.{8}).*/$1/;
-            @p = unpack "C*", $_;
-            foreach (@k) { printf "%02X", $_ ^ (shift @p || 0) };
-            print "\n"
-          ' | sudo tee /Library/Preferences/com.apple.VNCSettings.txt > /dev/null
-
-          echo "🚀 Restarting ARD agent..."
-          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
-            -restart -agent -console
-          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
-            -activate
-
-          echo "🎛 Optimizing system settings..."
+          #Start VNC/reset changes
+          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -restart -agent -console
+          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -activate
+          #Reduce Motion and Transparency 
+          defaults write com.apple.Accessibility DifferentiateWithoutColor -int 1
           defaults write com.apple.Accessibility ReduceMotionEnabled -int 1
           defaults write com.apple.universalaccess reduceMotion -int 1
           defaults write com.apple.universalaccess reduceTransparency -int 1
+          defaults write com.apple.Accessibility ReduceMotionEnabled -int 1
+
+          #Enable Performance mode
           sudo nvram boot-args="serverperfmode=1 $(nvram boot-args 2>/dev/null | cut -f 2-)"
 
+          #Enable Multi-Session
           sudo /usr/bin/defaults write .GlobalPreferences MultipleSessionsEnabled -bool TRUE
           defaults write "Apple Global Domain" MultipleSessionsEnabled -bool true
 
-          echo "🔓 Disabling screen lock..."
+          #Disable Screen-Lock
           defaults write com.apple.loginwindow DisableScreenLock -bool true
           defaults write com.apple.loginwindow AllowList -string '*'
 
-          cd /Users/$RDP_USER || cd ~
-
       - name: Install and Configure Ngrok
         run: |
-          brew install --cask ngrok
-          ngrok config add-authtoken "$NGROK_AUTH_TOKEN"
+          curl -s https://bin.equinox.io/a/bwQ25LiJJwv/ngrok-v3-3.23.3-darwin-arm64.zip -o ngrok.zip
+          unzip ngrok.zip
+          chmod +x ngrok
+          ./ngrok authtoken $NGROK_AUTH_TOKEN
 
       - name: Start Ngrok Tunnel
         run: |
-          echo "🌀 Starting ngrok tunnel..."
-          ngrok tcp 5900 --log=stdout > ngrok.log &
+          max_retries=3
+          retry_count=0
+          success=false
 
-          echo "⏳ Waiting for Ngrok to initialize..."
-          sleep 10
+          while [ $success = false ] && [ $retry_count -lt $max_retries ]; do
+            ./ngrok tcp 5900 &
+            ngrok_pid=$!
 
-          max_attempts=10
-          attempt=1
-          tunnel_url=""
-
-          while [[ -z "$tunnel_url" && $attempt -le $max_attempts ]]; do
-            echo "Attempt $attempt: Checking tunnel..."
-            tunnel_url=$(curl -s http://localhost:4040/api/tunnels | jq -r '.tunnels[]? | select(.proto=="tcp") | .public_url')
-            if [[ -z "$tunnel_url" ]]; then
+            attempts=0
+            max_attempts=10
+            ngrok_url=""
+            while [ -z "$ngrok_url" ] && [ $attempts -lt $max_attempts ]; do
               sleep 5
-              ((attempt++))
+              attempts=$((attempts + 1))
+              ngrok_url=$(curl -s http://localhost:4040/api/tunnels | jq -r '.tunnels[] | select(.proto == "tcp") | .public_url' 2>/dev/null)
+            done
+
+            if [ -z "$ngrok_url" ]; then
+              echo "Failed to retrieve Ngrok URL after $max_attempts attempts."
+              retry_count=$((retry_count + 1))
+              kill $ngrok_pid
+              continue
+            fi
+
+            ngrok_url=${ngrok_url#tcp://}
+            address=${ngrok_url%:*}
+            port=${ngrok_url#*:}
+
+            if nc -z -w 5 $address $port; then
+              success=true
+              echo "VNC Connection Details"
+              echo "URL: $address:$port"
+              echo "Username: $RDP_USER"
+              echo "Password: $RDP_PASS"
+            else
+              echo "Connection test failed. Retrying..."
+              kill $ngrok_pid
+              retry_count=$((retry_count + 1))
+              sleep 5
             fi
           done
 
-          if [[ -z "$tunnel_url" ]]; then
-            echo "❌ Failed to retrieve Ngrok URL after $max_attempts attempts."
+          if [ $success = false ]; then
+            echo "Failed to establish a working Ngrok tunnel after $max_retries attempts."
             exit 1
           fi
 
-          tunnel_url=${tunnel_url#tcp://}
-          host=${tunnel_url%:*}
-          port=${tunnel_url##*:}
-
-          echo "✅ RDP/VNC Tunnel Established!"
-          echo "🔗 Connect to: $host:$port"
-          echo "👤 Username: $RDP_USER"
-          echo "🔒 Password: $RDP_PASS"
-
-      - name: Keep Alive (6 hours)
+      - name: Keep Alive
         run: |
-          echo "Keeping runner alive for 6 hours..."
-          for i in {1..72}; do
-            echo "Still alive... ($i)"
-            sleep 300
+          duration=21600  # 6 hours in seconds
+          interval=300    # 5 minutes in seconds
+          end_time=$(( $(date +%s) + duration ))
+
+          while [ $(date +%s) -lt $end_time ]; do
+            if ! pgrep -f "./ngrok tcp 5900" > /dev/null; then
+              echo "Ngrok process not found. Exiting workflow."
+              exit 1
+            fi
+            sleep $interval
           done
 
-      - name: Cleanup Ngrok
+      - name: Cleanup
         if: always()
         run: |
-          pkill ngrok || true
-          echo "Ngrok process cleaned up."
+          if pgrep -f "./ngrok tcp 5900" > /dev/null; then
+            echo "Terminating Ngrok process..."
+            pkill -f "./ngrok tcp 5900"
+          fi
+          echo "Cleanup complete."
