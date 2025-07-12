@@ -1,0 +1,110 @@
+name: macOS - Ngrok
+
+on: workflow_dispatch
+
+env:
+  NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
+  RDP_USER: admin
+  RDP_PASS: p@ssw0rd!
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  ngrok-rdp:
+    runs-on: macos-15
+    timeout-minutes: 360
+
+    steps:
+      - name: Setup MacOS Remote Desktop
+        run: |
+          # Disable spotlight indexing
+          sudo mdutil -i off -a
+
+          # Create user
+          sudo dscl . -create /Users/admin
+          sudo dscl . -create /Users/admin UserShell /bin/bash
+          sudo dscl . -create /Users/admin RealName "Lazuee"
+          sudo dscl . -create /Users/admin UniqueID 1001
+          sudo dscl . -create /Users/admin PrimaryGroupID 80
+          sudo dscl . -create /Users/admin NFSHomeDirectory /Users/admin
+          sudo dscl . -passwd /Users/admin "$RDP_PASS"
+          sudo createhomedir -c -u admin > /dev/null
+
+          # Enable Remote Management
+          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
+            -activate -configure -access -on -users admin \
+            -privs -all -restart -agent -menu
+
+          # Enable VNC and set password
+          echo -n "$RDP_PASS" | perl -we \
+            'BEGIN { @k = unpack "C*", pack "H*", "1734516E8BA8C5E2FF1C39567390ADCA"}; 
+             $_ = <>; chomp; s/^(.{8}).*/$1/; 
+             @p = unpack "C*", $_; 
+             foreach (@k) { printf "%02X", $_ ^ (shift @p || 0) }; 
+             print "\n"' | \
+            sudo tee /Library/Preferences/com.apple.VNCSettings.txt
+
+          sudo chmod 600 /Library/Preferences/com.apple.VNCSettings.txt
+
+          # Improve accessibility and performance
+          defaults write com.apple.Accessibility ReduceMotionEnabled -int 1
+          defaults write com.apple.universalaccess reduceMotion -int 1
+          defaults write com.apple.universalaccess reduceTransparency -int 1
+          sudo nvram boot-args="serverperfmode=1 $(nvram boot-args 2>/dev/null | cut -f 2-)"
+
+          # Disable screen lock
+          defaults write com.apple.loginwindow DisableScreenLock -bool true
+          defaults write com.apple.loginwindow AllowList -string '*'
+
+      - name: Install and Configure Ngrok
+        run: |
+          brew install --cask ngrok
+          ngrok config add-authtoken "$NGROK_AUTH_TOKEN"
+
+      - name: Start Ngrok Tunnel
+        run: |
+          ngrok tcp 5900 --log=stdout > ngrok.log &
+          sleep 10
+
+          TUNNEL_URL=""
+          for i in {1..10}; do
+            TUNNEL_URL=$(curl -s http://localhost:4040/api/tunnels | jq -r '.tunnels[] | select(.proto == "tcp") | .public_url')
+            if [[ -n "$TUNNEL_URL" ]]; then
+              break
+            fi
+            echo "Waiting for ngrok tunnel..."
+            sleep 5
+          done
+
+          if [[ -z "$TUNNEL_URL" ]]; then
+            echo "Failed to get Ngrok tunnel URL"
+            exit 1
+          fi
+
+          TUNNEL_URL=${TUNNEL_URL#tcp://}
+          HOST=${TUNNEL_URL%:*}
+          PORT=${TUNNEL_URL##*:}
+
+          echo "✅ RDP/VNC Tunnel Established!"
+          echo "🔗 Connect to: $HOST:$PORT"
+          echo "👤 Username: $RDP_USER"
+          echo "🔒 Password: $RDP_PASS"
+
+      - name: Keep Alive (6 hours)
+        run: |
+          echo "Keeping runner alive for 6 hours..."
+          for i in {1..72}; do
+            echo "Still alive... ($i)"
+            sleep 300
+          done
+
+      - name: Setup tmate Session
+        uses: mxschmitt/action-tmate@v2
+
+      - name: Cleanup Ngrok
+        if: always()
+        run: |
+          pkill ngrok || true
+          echo "Ngrok process cleaned up."
