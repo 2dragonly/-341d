@@ -49,10 +49,18 @@ jobs:
           sudo defaults write /Library/Preferences/com.apple.RemoteManagement Enabled -bool true
           sudo defaults write /Library/Preferences/com.apple.ScreenSharing Enabled -bool true
 
-          # Attempt to grant screen recording permission (may not work in CI without MDM)
-          sudo sqlite3 /Library/Application\ Support/com.apple.TCC/TCC.db \
-            "INSERT OR REPLACE INTO access (service, client, client_type, auth_value, auth_reason, auth_version) \
-             VALUES ('kTCCServiceScreenCapture', 'com.apple.screensharing', 0, 2, 2, 1);" || echo "Warning: Failed to modify TCC database (may require MDM in CI)."
+          # Grant screen recording and accessibility to ARDAgent and Screen Sharing
+          TCC_DB="/Library/Application Support/com.apple.TCC/TCC.db"
+          
+          sudo sqlite3 "$TCC_DB" <<EOF
+          REPLACE INTO access 
+          (service, client, client_type, auth_value, auth_reason, auth_version, csreq, policy_id, indirect_object_identifier_type, indirect_object_identifier, flags, last_modified)
+          VALUES 
+          ('kTCCServiceScreenCapture','/System/Library/CoreServices/RemoteManagement/ARDAgent.app',1,2,1,1,NULL,NULL,NULL,NULL,0,strftime('%s','now')),
+          ('kTCCServiceScreenCapture','com.apple.screensharing',0,2,1,1,NULL,NULL,NULL,NULL,0,strftime('%s','now')),
+          ('kTCCServiceAccessibility','/System/Library/CoreServices/RemoteManagement/ARDAgent.app',1,2,1,1,NULL,NULL,NULL,NULL,0,strftime('%s','now')),
+          ('kTCCServiceAccessibility','com.apple.screensharing',0,2,1,1,NULL,NULL,NULL,NULL,0,strftime('%s','now'));
+          EOF
 
           # Verify Screen Sharing is enabled (alternative check)
           if ! defaults read /Library/Preferences/com.apple.ScreenSharing 2>/dev/null | grep -q "Enabled = 1"; then
