@@ -51,8 +51,7 @@ jobs:
           sudo defaults write com.apple.universalaccessAuthWarning com.apple.Terminal -bool true
           
           # Define known app paths
-          declare -A APP_PATHS=(
-            ["Terminal"]="/System/Applications/Utilities/Terminal.app"
+          declare APP_PATHS=(
             ["ARDAgent"]="/System/Library/CoreServices/RemoteManagement/ARDAgent.app"
             ["screencapture"]="/usr/sbin/screencapture"
           )
