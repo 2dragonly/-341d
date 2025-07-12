@@ -46,6 +46,12 @@ jobs:
           # Disable SIP protections
           sudo nvram boot-args="serverperfmode=1 amfi_get_out_of_my_way=1 $(nvram boot-args 2>/dev/null | cut -f 2-)"
 
+          # Enables osascript over SSH without keygen and fulldiskaccess warnings
+          sudo defaults write com.apple.universalaccessAuthWarning /System/Applications/Utilities/Terminal.app -bool true
+          sudo defaults write com.apple.universalaccessAuthWarning /usr/libexec -bool true
+          sudo defaults write com.apple.universalaccessAuthWarning /usr/libexec/sshd-keygen-wrapper -bool true
+          sudo defaults write com.apple.universalaccessAuthWarning com.apple.Terminal -bool true
+
           # Permissions for screen capture
           curl -s https://raw.githubusercontent.com/luckman212/screencapture-nag-remover/main/screencapture-nag-remover.sh | sudo bash
 
@@ -106,12 +112,6 @@ jobs:
           # Disables reading/writing .DS_Stores on SMB network shares
           # @see https://support.apple.com/en-us/HT208209
           defaults write com.apple.desktopservices DSDontWriteNetworkStores -bool true
-
-          # Enables osascript over SSH without keygen and fulldiskaccess warnings
-          defaults write com.apple.universalaccessAuthWarning /System/Applications/Utilities/Terminal.app -bool true
-          defaults write com.apple.universalaccessAuthWarning /usr/libexec -bool true
-          defaults write com.apple.universalaccessAuthWarning /usr/libexec/sshd-keygen-wrapper -bool true
-          defaults write com.apple.universalaccessAuthWarning com.apple.Terminal -bool true
 
           # Keep the session alive (caffeinate prevents idle sleep)
           caffeinate -dimsu &>/dev/null &
