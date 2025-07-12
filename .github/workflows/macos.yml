@@ -67,8 +67,8 @@ jobs:
               # Get the requirement string from codesign
               local req_str=$(codesign -d -r- "$app" 2>&1 | awk -F ' => ' '/designated/{print $2}')
               if [[ -z "$req_str" ]]; then
-                  echo "Failed to get requirement string for $app" >&2
-                  return 1
+                  # Fall back to anchor apple for system apps
+                  req_str="anchor apple"
               fi
               echo "$req_str" | csreq -r- -b /tmp/csreq.bin
               local hex_blob=$(xxd -p /tmp/csreq.bin | tr -d '\n')
@@ -86,7 +86,9 @@ jobs:
               if [[ "$exist" -gt 0 ]]; then
                   sudo sqlite3 /Library/Application\ Support/com.apple.TCC/TCC.db "update access SET auth_value=2, csreq='$app_csreq_blob' where service = '$service' and client = '$app_identifier';"
               else
-                  sudo sqlite3 /Library/Application\ Support/com.apple.TCC/TCC.db "insert into access values('$service', '$app_identifier', 0, 2, 3, 1, '$app_csreq_blob', NULL, 0, 'UNUSED', NULL, 0, CAST(strftime('%s','now') AS INTEGER));"
+                  # Updated for macOS Sonoma TCC schema (17 columns)
+                  sudo sqlite3 /Library/Application\ Support/com.apple.TCC/TCC.db \
+                    "INSERT INTO access VALUES('$service', '$app_identifier', 0, 2, 3, 1, '$app_csreq_blob', NULL, 0, 'UNUSED', NULL, 0, CAST(strftime('%s','now') AS INTEGER), NULL, NULL, NULL, NULL);"
               fi
           }
           function giveFullDiskAccessPermission {
