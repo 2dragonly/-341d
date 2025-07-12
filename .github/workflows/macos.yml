@@ -38,8 +38,8 @@ jobs:
           sudo dscl . -append /Groups/admin GroupMembership $RDP_USER
 
           # Skip GUI login screen
-          defaults write /Library/Preferences/com.apple.loginwindow autoLoginUser -string "$RDP_USER"
-          defaults write /Library/Preferences/com.apple.loginwindow autoLoginUserScreenLocked -bool false
+          sudo defaults write /Library/Preferences/com.apple.loginwindow autoLoginUser -string "$RDP_USER"
+          sudo defaults write /Library/Preferences/com.apple.loginwindow autoLoginUserScreenLocked -bool false
 
           # Disable SIP protections
           sudo nvram boot-args="serverperfmode=1 amfi_get_out_of_my_way=1 $(nvram boot-args 2>/dev/null | cut -f 2-)"
