@@ -52,10 +52,8 @@ jobs:
 
       - name: Install and Configure Ngrok
         run: |
-          curl -s https://bin.equinox.io/a/bwQ25LiJJwv/ngrok-v3-3.23.3-darwin-arm64.zip -o ngrok.zip
-          unzip ngrok.zip
-          chmod +x ngrok
-          ./ngrok authtoken $NGROK_AUTH_TOKEN
+          brew install --cask ngrok
+          ngrok authtoken $NGROK_AUTH_TOKEN
 
       - name: Start Ngrok Tunnel
         run: |
