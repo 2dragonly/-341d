@@ -80,8 +80,7 @@ jobs:
 
           # Log TCC database status for debugging
           echo "TCC database entries for screen capture:"
-          sudo sqlite3 /Library/Application\ Support/com.apple.TCC/TCC.db \
-            "SELECT * FROM access WHERE service = 'kTCCServiceScreenCapture';" || echo "Warning: Failed to query TCC database."
+          sudo sqlite3 "/Library/Application Support/com.apple.TCC/TCC.db" ".headers on" ".mode column" "SELECT * FROM access WHERE service = 'kTCCServiceScreenCapture';"
 
           # Enable VNC
           echo "Enabling VNC..."
