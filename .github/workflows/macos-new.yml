@@ -1,0 +1,21 @@
+name: Enable Screen Sharing and VNC
+on: push
+jobs:
+  enable-vnc:
+    runs-on: macos-15
+    steps:
+      - name: Enable Screen Sharing
+        run: |
+          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -activate -configure -access -on -clientopts -setvnclegacy -vnclegacy yes -clientopts -setvncpw -vncpw mysecurepassword -restart -agent -privs -all
+      - name: Setup ngrok tunnel
+        uses: luisboto/ngrok-tunnel-action@v1
+        with:
+          timeout: 1h
+          port: 5900
+          ngrok_authtoken: ${{ secrets.NGROK_AUTHTOKEN }}
+          tunnel_type: tcp
+          save_url_to_filename: ngrok_url.txt
+      - name: Display ngrok URL
+        run: cat ngrok_url.txt
+      - name: Keep job running
+        run: sleep 3600
