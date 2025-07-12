@@ -76,6 +76,7 @@ jobs:
             "SELECT * FROM access WHERE service = 'kTCCServiceScreenCapture';" || echo "Warning: Failed to query TCC database."
 
           # Enable VNC
+          echo "Enabling VNC..."
           sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
             -activate \
             -configure \
