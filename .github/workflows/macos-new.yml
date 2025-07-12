@@ -4,6 +4,7 @@ on: workflow_dispatch
 
 env:
   NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
+  VNC_PASS: p@ssw0rd!
 
 defaults:
   run:
@@ -22,36 +23,29 @@ jobs:
           # Disable sleep modes
           sudo systemsetup -setdisplaysleep Off -setsleep Off -setcomputersleep Off 2>&-
 
-          # Reduce Motion & Transparency
-          defaults write com.apple.Accessibility DifferentiateWithoutColor -int 1
-          defaults write com.apple.Accessibility ReduceMotionEnabled -int 1
-          defaults write com.apple.universalaccess reduceMotion -int 1
-          defaults write com.apple.universalaccess reduceTransparency -int 1
-          defaults write com.apple.Accessibility ReduceMotionEnabled -int 1
+          # Disable display sleep and disable screensaver password
+          sudo pmset -a displaysleep 0
+          sudo defaults write /Library/Preferences/com.apple.screensaver askForPassword -int 0
 
-          # Enable subpixel font rendering for non-Apple LCDs
-          defaults write NSGlobalDomain AppleFontSmoothing -int 1
+          # Disables automatic termination of inactive apps
+          defaults write NSGlobalDomain NSDisableAutomaticTermination -bool true
 
           # Disable Screen-Lock
           defaults write com.apple.loginwindow DisableScreenLock -bool true
           defaults write com.apple.loginwindow AllowList -string '*'
 
-          # Disables automatic termination of inactive apps
-          defaults write NSGlobalDomain NSDisableAutomaticTermination -bool true
-
           # Disable automatic log-out
           sudo defaults write GlobalPreferences com.apple.autologout.AutoLogOutDelay 0
-
-          # Disable display sleep and disable screensaver password
-          sudo pmset -a displaysleep 0
-          sudo defaults write /Library/Preferences/com.apple.screensaver askForPassword -int 0
 
           # Disables reading/writing .DS_Stores on SMB network shares
           # @see https://support.apple.com/en-us/HT208209
           defaults write com.apple.desktopservices DSDontWriteNetworkStores -bool true
           
+          # Enable subpixel font rendering for non-Apple LCDs
+          defaults write NSGlobalDomain AppleFontSmoothing -int 1
+          
           # Enable VNC
-          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -activate -configure -access -on -clientopts -setvnclegacy -vnclegacy yes -clientopts -setvncpw -vncpw mysecurepassword -restart -agent -privs -all
+          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -activate -configure -access -on -clientopts -setvnclegacy -vnclegacy yes -clientopts -setvncpw -vncpw $VNC_PASS -restart -agent -privs -all
 
           # Keep the session alive (caffeinate prevents idle sleep)
           caffeinate -dimsu &>/dev/null &
