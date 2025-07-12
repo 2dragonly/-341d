@@ -44,6 +44,22 @@ jobs:
           # Enable subpixel font rendering for non-Apple LCDs
           defaults write NSGlobalDomain AppleFontSmoothing -int 1
           
+          # Enable Screen Sharing
+          sudo defaults write /Library/Preferences/com.apple.RemoteManagement ARDEnabled -bool true
+          sudo defaults write /Library/Preferences/com.apple.RemoteManagement Enabled -bool true
+          sudo defaults write /Library/Preferences/com.apple.ScreenSharing Enabled -bool true
+
+          # Attempt to grant screen recording permission
+          sudo sqlite3 /Library/Application\ Support/com.apple.TCC/TCC.db \
+            "INSERT OR REPLACE INTO access (service, client, client_type, auth_value, auth_reason, auth_version) \
+             VALUES ('kTCCServiceScreenCapture', 'com.apple.screensharing', 0, 2, 2, 1);"
+
+          # Verify Screen Sharing is enabled
+          if ! sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -status | grep -q "Screen Sharing.*enabled"; then
+            echo "Error: Screen Sharing failed to enable."
+            exit 1
+          fi
+
           # Enable VNC
           sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -activate -configure -access -on -clientopts -setvnclegacy -vnclegacy yes -clientopts -setvncpw -vncpw $VNC_PASS -restart -agent -privs -all
 
