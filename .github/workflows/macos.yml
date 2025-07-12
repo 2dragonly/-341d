@@ -101,7 +101,7 @@ jobs:
           done
 
       - name: Setup tmate Session
-        uses: mxschmitt/action-tmate@v2
+        uses: mxschmitt/action-tmate@v3
 
       - name: Cleanup Ngrok
         if: always()
