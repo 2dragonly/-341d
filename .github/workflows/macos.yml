@@ -59,7 +59,7 @@ jobs:
 
           # Enable subpixel font rendering for non-Apple LCDs
           defaults write NSGlobalDomain AppleFontSmoothing -int 1
-          
+
           # Enable Performance mode
           sudo nvram boot-args="serverperfmode=1 $(nvram boot-args 2>/dev/null | cut -f 2-)"
 
@@ -82,11 +82,16 @@ jobs:
           # Disable automatic log-out
           sudo defaults write GlobalPreferences com.apple.autologout.AutoLogOutDelay 0
 
-          # Disables saving application state on logout/shutdown
-          defaults write com.apple.loginwindow TALLogoutSavesState -bool false
+          # Disable guest account form login window
+          sudo defaults write /Library/Preferences/com.apple.loginwindow GuestEnabled -bool false;
 
           # Skip GUI login screen
-          defaults write com.apple.loginwindow autoLoginUser -bool true
+          sudo defaults write /Library/Preferences/com.apple.loginwindow SHOWFULLNAME -bool false
+          sudo defaults write /Library/Preferences/com.apple.loginwindow autoLoginUser vncuser
+
+          # Disable display sleep and disable screensaver password
+          sudo pmset -a displaysleep 0
+          sudo defaults write /Library/Preferences/com.apple.screensaver askForPassword -int 0
 
           # Disable save to iCloud
           sudo defaults write NSGlobalDomain NSDocumentSaveNewDocumentsToCloud -bool false
@@ -106,6 +111,15 @@ jobs:
           defaults write com.apple.universalaccessAuthWarning /usr/libexec -bool true
           defaults write com.apple.universalaccessAuthWarning /usr/libexec/sshd-keygen-wrapper -bool true
           defaults write com.apple.universalaccessAuthWarning com.apple.Terminal -bool true
+
+          # Remove the sleep image file to save disk space
+          sudo chflags nouchg /private/var/vm/sleepimage
+          sudo rm -rf /private/var/vm/sleepimage
+          sudo touch /private/var/vm/sleepimage
+          sudo chflags uchg /private/var/vm/sleepimage
+
+          # Keep the session alive (caffeinate prevents idle sleep)
+          caffeinate -dimsu &>/dev/null &
 
       - name: Install and Configure Ngrok
         run: |
