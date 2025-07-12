@@ -22,9 +22,7 @@ jobs:
           sudo mdutil -i off -a
           
           # Disable sleep modes
-          sudo systemsetup -setdisplaysleep Off
-          sudo systemsetup -setsleep Off
-          sudo systemsetup -setcomputersleep Off
+          sudo systemsetup -setdisplaysleep Off -setsleep Off -setcomputersleep Off 2>&-
 
           # Create new account
           sudo dscl . -create /Users/$RDP_USER
@@ -63,8 +61,10 @@ jobs:
             -configure -allowAccessFor -allUsers -privs -all -clientopts -setvnclegacy -vnclegacy yes
           sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
             -configure -clientopts -setvncpw -vncpw "$RDP_PASS"
-          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
-            -restart -agent -console
+          
+          # Start VNC/reset changes
+          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -restart -agent -console
+          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -activate
 
           # Turn off Bluetooth, if no paired devices exist
           sudo defaults write /Library/Preferences/com.apple.Bluetooth ControllerPowerState -int 0
