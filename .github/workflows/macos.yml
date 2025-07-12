@@ -81,17 +81,10 @@ jobs:
             exit 1
           fi
 
-          TUNNEL_URL=${TUNNEL_URL#tcp://}
-          HOST=${TUNNEL_URL%:*}
-          PORT=${TUNNEL_URL##*:}
-
           echo "✅ RDP/VNC Tunnel Established!"
-          echo "🔗 Connect to: $HOST:$PORT"
+          echo "🔗 Connect to: $TUNNEL_URL"
           echo "👤 Username: $RDP_USER"
           echo "🔒 Password: $RDP_PASS"
-
-      - name: Setup tmate Session
-        uses: mxschmitt/action-tmate@v3
 
       - name: Keep Alive (6 hours)
         run: |
