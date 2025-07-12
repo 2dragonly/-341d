@@ -52,8 +52,11 @@ jobs:
           sudo defaults write com.apple.universalaccessAuthWarning /usr/libexec/sshd-keygen-wrapper -bool true
           sudo defaults write com.apple.universalaccessAuthWarning com.apple.Terminal -bool true
 
-          # Permissions for screen capture
-          curl -s https://raw.githubusercontent.com/luckman212/screencapture-nag-remover/main/screencapture-nag-remover.sh | sudo bash
+          # Auto grant permissions
+          EPOCH=$(($(date +'%s * 1000 + %-N / 1000000')))
+          TCC="replace into access (service,client,client_type,auth_value,auth_reason,auth_version,indirect_object_identifier,flags,last_modified) values (\"kTCCServiceAccessibility\",\"/usr/sbin/sshd\",1,2,3,1,\"UNUSED\",0,$EPOCH);"
+          sudo sqlite3 "/Library/Application Support/com.apple.TCC/TCC.db" "$TCC"
+          sudo sqlite3 "$HOME/Library/Application Support/com.apple.TCC/TCC.db" "$TCC"
 
           # Enable VNC
           sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
