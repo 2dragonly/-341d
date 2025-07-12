@@ -1,21 +1,134 @@
-name: Enable Screen Sharing and VNC
-on: push
+name: MacOS - Ngrok
+
+on: workflow_dispatch
+
+env:
+  NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
+
+defaults:
+  run:
+    shell: bash
+
 jobs:
-  enable-vnc:
+  ngrok-rdp:
     runs-on: macos-15
+    timeout-minutes: 360
     steps:
       - name: Enable Screen Sharing
         run: |
+          # Disable spotlight indexing
+          sudo mdutil -i off -a
+          
+          # Disable sleep modes
+          sudo systemsetup -setdisplaysleep Off -setsleep Off -setcomputersleep Off 2>&-
+
+          # Reduce Motion & Transparency
+          defaults write com.apple.Accessibility DifferentiateWithoutColor -int 1
+          defaults write com.apple.Accessibility ReduceMotionEnabled -int 1
+          defaults write com.apple.universalaccess reduceMotion -int 1
+          defaults write com.apple.universalaccess reduceTransparency -int 1
+          defaults write com.apple.Accessibility ReduceMotionEnabled -int 1
+
+          # Enable subpixel font rendering for non-Apple LCDs
+          defaults write NSGlobalDomain AppleFontSmoothing -int 1
+
+          # Disable Screen-Lock
+          defaults write com.apple.loginwindow DisableScreenLock -bool true
+          defaults write com.apple.loginwindow AllowList -string '*'
+
+          # Disables automatic termination of inactive apps
+          defaults write NSGlobalDomain NSDisableAutomaticTermination -bool true
+
+          # Disable automatic log-out
+          sudo defaults write GlobalPreferences com.apple.autologout.AutoLogOutDelay 0
+
+          # Disable display sleep and disable screensaver password
+          sudo pmset -a displaysleep 0
+          sudo defaults write /Library/Preferences/com.apple.screensaver askForPassword -int 0
+
+          # Disables reading/writing .DS_Stores on SMB network shares
+          # @see https://support.apple.com/en-us/HT208209
+          defaults write com.apple.desktopservices DSDontWriteNetworkStores -bool true
+          
+          # Enable VNC
           sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -activate -configure -access -on -clientopts -setvnclegacy -vnclegacy yes -clientopts -setvncpw -vncpw mysecurepassword -restart -agent -privs -all
-      - name: Setup ngrok tunnel
-        uses: luisboto/ngrok-tunnel-action@v1
-        with:
-          timeout: 1h
-          port: 5900
-          ngrok_authtoken: ${{ secrets.NGROK_AUTHTOKEN }}
-          tunnel_type: tcp
-          save_url_to_filename: ngrok_url.txt
-      - name: Display ngrok URL
-        run: cat ngrok_url.txt
-      - name: Keep job running
-        run: sleep 3600
+
+          # Keep the session alive (caffeinate prevents idle sleep)
+          caffeinate -dimsu &>/dev/null &
+
+      - name: Install and Configure Ngrok
+        run: |
+          curl -s https://bin.equinox.io/a/bwQ25LiJJwv/ngrok-v3-3.23.3-darwin-arm64.zip -o ngrok.zip
+          unzip ngrok.zip
+          chmod +x ngrok
+          ./ngrok authtoken $NGROK_AUTH_TOKEN
+
+      - name: Start Ngrok Tunnel
+        run: |
+          max_retries=3
+          retry_count=0
+          success=false
+
+          while [ $success = false ] && [ $retry_count -lt $max_retries ]; do
+            ./ngrok tcp 5900 &
+            ngrok_pid=$!
+
+            attempts=0
+            max_attempts=10
+            ngrok_url=""
+            while [ -z "$ngrok_url" ] && [ $attempts -lt $max_attempts ]; do
+              sleep 5
+              attempts=$((attempts + 1))
+              ngrok_url=$(curl -s http://localhost:4040/api/tunnels | jq -r '.tunnels[] | select(.proto == "tcp") | .public_url' 2>/dev/null)
+            done
+
+            if [ -z "$ngrok_url" ]; then
+              echo "Failed to retrieve Ngrok URL after $max_attempts attempts."
+              retry_count=$((retry_count + 1))
+              kill $ngrok_pid
+              continue
+            fi
+
+            ngrok_url=${ngrok_url#tcp://}
+            address=${ngrok_url%:*}
+            port=${ngrok_url#*:}
+
+            if nc -z -w 5 $address $port; then
+              success=true
+              echo "VNC Connection Details"
+              echo "URL: $address:$port"
+            else
+              echo "Connection test failed. Retrying..."
+              kill $ngrok_pid
+              retry_count=$((retry_count + 1))
+              sleep 5
+            fi
+          done
+
+          if [ $success = false ]; then
+            echo "Failed to establish a working Ngrok tunnel after $max_retries attempts."
+            exit 1
+          fi
+
+      - name: Keep Alive
+        run: |
+          duration=21600  # 6 hours in seconds
+          interval=300    # 5 minutes in seconds
+          end_time=$(( $(date +%s) + duration ))
+
+          while [ $(date +%s) -lt $end_time ]; do
+            if ! pgrep -f "./ngrok tcp 5900" > /dev/null; then
+              echo "Ngrok process not found. Exiting workflow."
+              exit 1
+            fi
+            sleep $interval
+          done
+
+      - name: Cleanup
+        if: always()
+        run: |
+          if pgrep -f "./ngrok tcp 5900" > /dev/null; then
+            echo "Terminating Ngrok process..."
+            pkill -f "./ngrok tcp 5900"
+          fi
+          echo "Cleanup complete."
