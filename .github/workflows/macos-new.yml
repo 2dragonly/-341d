@@ -78,7 +78,7 @@ jobs:
           success=false
 
           while [ $success = false ] && [ $retry_count -lt $max_retries ]; do
-            ./ngrok tcp 5900 &
+            ngrok tcp 5900 &
             ngrok_pid=$!
 
             attempts=0
@@ -125,7 +125,7 @@ jobs:
           end_time=$(( $(date +%s) + duration ))
 
           while [ $(date +%s) -lt $end_time ]; do
-            if ! pgrep -f "./ngrok tcp 5900" > /dev/null; then
+            if ! pgrep -f "ngrok tcp 5900" > /dev/null; then
               echo "Ngrok process not found. Exiting workflow."
               exit 1
             fi
@@ -135,8 +135,8 @@ jobs:
       - name: Cleanup
         if: always()
         run: |
-          if pgrep -f "./ngrok tcp 5900" > /dev/null; then
+          if pgrep -f "ngrok tcp 5900" > /dev/null; then
             echo "Terminating Ngrok process..."
-            pkill -f "./ngrok tcp 5900"
+            pkill -f "ngrok tcp 5900"
           fi
           echo "Cleanup complete."
