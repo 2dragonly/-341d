@@ -63,30 +63,36 @@ jobs:
 
       - name: Start Ngrok Tunnel
         run: |
+          echo "🌀 Starting ngrok tunnel..."
           ngrok tcp 5900 --log=stdout > ngrok.log &
+
+          echo "⏳ Waiting for Ngrok to initialize..."
           sleep 10
 
-          TUNNEL_URL=""
-          for i in {1..10}; do
-            TUNNEL_URL=$(curl -s http://localhost:4040/api/tunnels | jq -r '.tunnels[] | select(.proto == "tcp") | .public_url')
-            if [[ -n "$TUNNEL_URL" ]]; then
-              break
+          max_attempts=10
+          attempt=1
+          tunnel_url=""
+
+          while [[ -z "$tunnel_url" && $attempt -le $max_attempts ]]; do
+            echo "Attempt $attempt: Checking tunnel..."
+            tunnel_url=$(curl -s http://localhost:4040/api/tunnels | jq -r '.tunnels[]? | select(.proto=="tcp") | .public_url')
+            if [[ -z "$tunnel_url" ]]; then
+              sleep 5
+              ((attempt++))
             fi
-            echo "Waiting for ngrok tunnel..."
-            sleep 5
           done
 
-          if [[ -z "$TUNNEL_URL" ]]; then
-            echo "Failed to get Ngrok tunnel URL"
+          if [[ -z "$tunnel_url" ]]; then
+            echo "❌ Failed to retrieve Ngrok URL after $max_attempts attempts."
             exit 1
           fi
 
-          TUNNEL_URL=${TUNNEL_URL#tcp://}
-          HOST=${TUNNEL_URL%:*}
-          PORT=${TUNNEL_URL##*:}
-          
+          tunnel_url=${tunnel_url#tcp://}
+          host=${tunnel_url%:*}
+          port=${tunnel_url##*:}
+
           echo "✅ RDP/VNC Tunnel Established!"
-          echo "🔗 Connect to: $HOST:$PORT"
+          echo "🔗 Connect to: $host:$port"
           echo "👤 Username: $RDP_USER"
           echo "🔒 Password: $RDP_PASS"
 
