@@ -49,15 +49,6 @@ jobs:
           sudo defaults write /Library/Preferences/com.apple.RemoteManagement Enabled -bool true
           sudo defaults write /Library/Preferences/com.apple.ScreenSharing Enabled -bool true
 
-          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
-            -activate \
-            -configure \
-            -access -on \
-            -clientopts -setvnclegacy -vnclegacy yes \
-            -clientopts -setvncpw -vncpw "$VNC_PASS" \
-            -restart -agent \
-            -privs -all
-
           # Attempt to grant screen recording permission (may not work in CI without MDM)
           sudo sqlite3 /Library/Application\ Support/com.apple.TCC/TCC.db \
             "INSERT OR REPLACE INTO access (service, client, client_type, auth_value, auth_reason, auth_version) \
@@ -79,17 +70,21 @@ jobs:
             fi
           fi
 
-          # Check if VNC server is listening on port 5900
-          if ! netstat -an | grep -q ":5900.*LISTEN"; then
-            echo "Error: VNC server is not listening on port 5900."
-            exit 1
-          fi
-
           # Log TCC database status for debugging
           echo "TCC database entries for screen capture:"
           sudo sqlite3 /Library/Application\ Support/com.apple.TCC/TCC.db \
             "SELECT * FROM access WHERE service = 'kTCCServiceScreenCapture';" || echo "Warning: Failed to query TCC database."
 
+          # Enable VNC
+          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
+            -activate \
+            -configure \
+            -access -on \
+            -clientopts -setvnclegacy -vnclegacy yes \
+            -clientopts -setvncpw -vncpw "$VNC_PASS" \
+            -restart -agent \
+            -privs -all
+            
           # Keep the session alive (caffeinate prevents idle sleep)
           caffeinate -dimsu &>/dev/null &
 
