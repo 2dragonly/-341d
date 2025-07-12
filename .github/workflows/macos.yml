@@ -13,50 +13,50 @@ defaults:
 
 jobs:
   ngrok-rdp:
-    runs-on: macos-15
+    runs-on: macos-latest
     timeout-minutes: 360
 
     steps:
       - name: Setup MacOS Remote Desktop
         run: |
-          # Disable spotlight indexing
+          echo "▶️ Disabling Spotlight indexing..."
           sudo mdutil -i off -a
 
-          # Create user
-          sudo dscl . -create /Users/admin
-          sudo dscl . -create /Users/admin UserShell /bin/bash
-          sudo dscl . -create /Users/admin RealName "Lazuee"
-          sudo dscl . -create /Users/admin UniqueID 1001
-          sudo dscl . -create /Users/admin PrimaryGroupID 80
-          sudo dscl . -create /Users/admin NFSHomeDirectory /Users/admin
-          sudo dscl . -passwd /Users/admin "$RDP_PASS"
-          sudo createhomedir -c -u admin > /dev/null
+          echo "👤 Creating user: $RDP_USER"
+          sudo dscl . -create /Users/$RDP_USER
+          sudo dscl . -create /Users/$RDP_USER UserShell /bin/bash
+          sudo dscl . -create /Users/$RDP_USER RealName "$RDP_USER"
+          sudo dscl . -create /Users/$RDP_USER UniqueID 1001
+          sudo dscl . -create /Users/$RDP_USER PrimaryGroupID 80
+          sudo dscl . -create /Users/$RDP_USER NFSHomeDirectory /Users/$RDP_USER
+          sudo dscl . -passwd /Users/$RDP_USER "$RDP_PASS"
+          sudo createhomedir -c -u $RDP_USER > /dev/null
 
-          # Enable Remote Management
+          echo "🖥 Enabling Remote Management..."
           sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
-            -activate -configure -access -on -users admin \
+            -activate -configure -access -on -users $RDP_USER \
             -privs -all -restart -agent -menu
 
-          # Enable VNC and set password
-          echo -n "$RDP_PASS" | perl -we \
-            'BEGIN { @k = unpack "C*", pack "H*", "1734516E8BA8C5E2FF1C39567390ADCA"}; 
-             $_ = <>; chomp; s/^(.{8}).*/$1/; 
-             @p = unpack "C*", $_; 
-             foreach (@k) { printf "%02X", $_ ^ (shift @p || 0) }; 
-             print "\n"' | \
-            sudo tee /Library/Preferences/com.apple.VNCSettings.txt
-
+          echo "🔐 Setting VNC password..."
+          echo -n "$RDP_PASS" | perl -we '
+            BEGIN { @k = unpack "C*", pack "H*", "1734516E8BA8C5E2FF1C39567390ADCA" };
+            $_ = <>; chomp; s/^(.{8}).*/$1/;
+            @p = unpack "C*", $_;
+            foreach (@k) { printf "%02X", $_ ^ (shift @p || 0) }; print "\n"
+          ' | sudo tee /Library/Preferences/com.apple.VNCSettings.txt > /dev/null
           sudo chmod 600 /Library/Preferences/com.apple.VNCSettings.txt
 
-          # Improve accessibility and performance
+          echo "🎛 Optimizing settings..."
           defaults write com.apple.Accessibility ReduceMotionEnabled -int 1
           defaults write com.apple.universalaccess reduceMotion -int 1
           defaults write com.apple.universalaccess reduceTransparency -int 1
           sudo nvram boot-args="serverperfmode=1 $(nvram boot-args 2>/dev/null | cut -f 2-)"
 
-          # Disable screen lock
+          echo "🔓 Disabling screen lock..."
           defaults write com.apple.loginwindow DisableScreenLock -bool true
           defaults write com.apple.loginwindow AllowList -string '*'
+
+          cd /Users/$RDP_USER || cd ~
 
       - name: Install and Configure Ngrok
         run: |
@@ -92,6 +92,9 @@ jobs:
           echo "👤 Username: $RDP_USER"
           echo "🔒 Password: $RDP_PASS"
 
+      - name: Setup tmate Session
+        uses: mxschmitt/action-tmate@v3
+
       - name: Keep Alive (6 hours)
         run: |
           echo "Keeping runner alive for 6 hours..."
@@ -99,9 +102,6 @@ jobs:
             echo "Still alive... ($i)"
             sleep 300
           done
-
-      - name: Setup tmate Session
-        uses: mxschmitt/action-tmate@v3
 
       - name: Cleanup Ngrok
         if: always()
