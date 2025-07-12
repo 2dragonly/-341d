@@ -81,8 +81,12 @@ jobs:
             exit 1
           fi
 
+          TUNNEL_URL=${TUNNEL_URL#tcp://}
+          HOST=${TUNNEL_URL%:*}
+          PORT=${TUNNEL_URL##*:}
+          
           echo "✅ RDP/VNC Tunnel Established!"
-          echo "🔗 Connect to: $TUNNEL_URL"
+          echo "🔗 Connect to: $HOST:$PORT"
           echo "👤 Username: $RDP_USER"
           echo "🔒 Password: $RDP_PASS"
 
