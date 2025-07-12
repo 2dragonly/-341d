@@ -112,12 +112,6 @@ jobs:
           defaults write com.apple.universalaccessAuthWarning /usr/libexec/sshd-keygen-wrapper -bool true
           defaults write com.apple.universalaccessAuthWarning com.apple.Terminal -bool true
 
-          # Remove the sleep image file to save disk space
-          sudo chflags nouchg /private/var/vm/sleepimage
-          sudo rm -rf /private/var/vm/sleepimage
-          sudo touch /private/var/vm/sleepimage
-          sudo chflags uchg /private/var/vm/sleepimage
-
           # Keep the session alive (caffeinate prevents idle sleep)
           caffeinate -dimsu &>/dev/null &
 
